@@ -6,7 +6,6 @@ import jwt
 from flask_restx import abort
 
 from project.dao import UserDAO
-from project.dao.base import BaseDAO
 from project.exceptions import ItemNotFound
 from project.models import User
 from project.tools import security
@@ -37,21 +36,28 @@ class UsersService:
     def create_user(self, login, password):
         return self.dao.create(login, password)
 
-    def generate_tokens(self, login, password, password_hash):
-        if not security.compare_passwords(password, password_hash):
-            raise abort(400)
+    def generate_tokens(self, login, password, is_refresh=True):
+        user = self.get_user_by_login(login)
+        if user is None:
+            raise abort(404)
+
+        if not is_refresh:
+            if not security.compare_passwords(user.password, is_refresh):
+                raise abort(400)
 
         data = {
             "email": login,
-            "password": password_hash
+            "password": password
         }
 
         min30 = datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
         data["exp"] = calendar.timegm(min30.timetuple())
         access_token = jwt.encode(data, secret, algorithm=algo)
+
         days130 = datetime.datetime.utcnow() + datetime.timedelta(days=130)
         data["exp"] = calendar.timegm(days130.timetuple())
         refresh_token = jwt.encode(data, secret, algorithm=algo)
+
         tokens = {"access_token": access_token, "refresh_token": refresh_token}
 
         return tokens, 201
@@ -59,25 +65,17 @@ class UsersService:
     def approve_refresh_token(self, refresh_token):
         data = jwt.decode(jwt=refresh_token, key=secret, algorithms=[algo])
         login = data.get('email')
-        password_hash = data.get('password')
 
-        user = self.get_user_by_login(login)
-        if user is None:
-            raise abort(404)
-
-        return self.generate_tokens(login, user.password, password_hash)
+        return self.generate_tokens(login, None, is_refresh=True)
 
     def check(self, login, password):
         user = self.get_user_by_login(login)
-        return self.generate_tokens(login=user.email, password=password, password_hash=user.password)
+        return self.generate_tokens(login=user.email, password=password)
 
-    def update_token(self, refresh_token):
-        return self.approve_refresh_token(refresh_token)
 
     def get_user_by_token(self, refresh_token):
         data = jwt.decode(jwt=refresh_token, key=secret, algorithms=[algo])
         if data:
-
             return self.get_user_by_login(data.get('email'))
 
     def update_user(self, data, refresh_token):

@@ -14,5 +14,6 @@ def shell():
         "Movie": Movie
     }
 
+
 if __name__ == '__main__':
-    app.run(host="localhost", port=10001, debug=True)
+    app.run(host="localhost", port=5001, debug=True)

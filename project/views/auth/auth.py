@@ -29,7 +29,6 @@ class LoginView(Resource):
     @api.response(404, 'Not Found')
     def put(self):
         data = request.json
-        if data.get('access_token') and data.get('refresh_token'):
-            return user_service.update_token(data.get('refresh_token')), 201
-        else:
-            return f'Чего-то не хватает', 401
+        token = data.get('refresh_token')
+        tokens = user_service.approve_refresh_token(token)
+        return tokens, 201
