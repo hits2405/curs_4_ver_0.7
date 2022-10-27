@@ -6,7 +6,6 @@ import jwt
 from flask_restx import abort
 
 from project.dao import UserDAO
-from project.dao.base import BaseDAO
 from project.exceptions import ItemNotFound
 from project.models import User
 from project.tools import security
@@ -77,7 +76,6 @@ class UsersService:
     def get_user_by_token(self, refresh_token):
         data = jwt.decode(jwt=refresh_token, key=secret, algorithms=[algo])
         if data:
-
             return self.get_user_by_login(data.get('email'))
 
     def update_user(self, data, refresh_token):
