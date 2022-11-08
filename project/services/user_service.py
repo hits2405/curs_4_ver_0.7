@@ -1,21 +1,15 @@
-import calendar
-import datetime
+import base64
+import hashlib
+import hmac
 from typing import Optional
 
-import jwt
+from flask import current_app
 from flask_restx import abort
 
 from project.dao import UserDAO
 from project.exceptions import ItemNotFound
 from project.models import User
-from project.tools import security
-from project.tools.security import generate_password_hash
-
-secret = '249y823r9v8238r9u'
-algo = 'HS256'
-
-
-
+from project.tools.security import generate_password_hash, generate_tokens, approve_refresh_token, get_data_from_token
 
 
 class UsersService:
@@ -36,45 +30,15 @@ class UsersService:
     def create_user(self, login, password):
         return self.dao.create(login, password)
 
-    def generate_tokens(self, login, password, is_refresh=True):
-        user = self.get_user_by_login(login)
-        if user is None:
-            raise abort(404)
-
-        if not is_refresh:
-            if not security.compare_passwords(user.password, is_refresh):
-                raise abort(400)
-
-        data = {
-            "email": login,
-            "password": password
-        }
-
-        min30 = datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-        data["exp"] = calendar.timegm(min30.timetuple())
-        access_token = jwt.encode(data, secret, algorithm=algo)
-
-        days130 = datetime.datetime.utcnow() + datetime.timedelta(days=130)
-        data["exp"] = calendar.timegm(days130.timetuple())
-        refresh_token = jwt.encode(data, secret, algorithm=algo)
-
-        tokens = {"access_token": access_token, "refresh_token": refresh_token}
-
-        return tokens, 201
-
-    def approve_refresh_token(self, refresh_token):
-        data = jwt.decode(jwt=refresh_token, key=secret, algorithms=[algo])
-        login = data.get('email')
-
-        return self.generate_tokens(login, None, is_refresh=True)
+    def update_token(self, refresh_token):
+        return approve_refresh_token(refresh_token)
 
     def check(self, login, password):
         user = self.get_user_by_login(login)
-        return self.generate_tokens(login=user.email, password=password)
-
+        return generate_tokens(email=user.email, password=password, password_hash=user.password)
 
     def get_user_by_token(self, refresh_token):
-        data = jwt.decode(jwt=refresh_token, key=secret, algorithms=[algo])
+        data = get_data_from_token(refresh_token)
         if data:
             return self.get_user_by_login(data.get('email'))
 
@@ -86,8 +50,19 @@ class UsersService:
 
     def update_password(self, data, refresh_token):
         user = self.get_user_by_token(refresh_token)
-        if not security.compare_passwords(password=data.get('old_password'), password_hash=user.password):
+        if not self.compare_passwords(password=data.get('old_password'), password_hash=user.password):
             raise abort(400)
         if user:
             self.dao.update(login=user.email, data={"password": generate_password_hash(data.get('new_password'))})
             return self.check(login=user.email, password=data.get('new_password'))
+
+    def compare_passwords(self, password, password_hash) -> bool:
+        decoded_digest = base64.b64decode(password_hash)
+        hash_digest = hashlib.pbkdf2_hmac(
+            hash_name="sha256",
+            password=password.encode("utf-8"),
+            salt=current_app.config["PWD_HASH_SALT"],
+            iterations=current_app.config["PWD_HASH_ITERATIONS"],
+        )
+
+        return hmac.compare_digest(decoded_digest, hash_digest)

@@ -4,6 +4,10 @@ from pathlib import Path
 from typing import Type
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+ALGORITHM = 'HS256'
+JWT_SECRET = '123'
+PWD_HASH_SALT = base64.b64decode("none")
+PWD_HASH_ITERATIONS = 100
 
 
 class BaseConfig:
@@ -39,7 +43,6 @@ class DevelopmentConfig(BaseConfig):
 
 class ProductionConfig(BaseConfig):
     DEBUG = False
-    # TODO: дополнить конфиг
 
 
 class ConfigFactory:

@@ -1,7 +1,6 @@
 from typing import Optional
 
 from project.dao import DirectorsDAO
-from project.dao.base import BaseDAO
 from project.exceptions import ItemNotFound
 from project.models import Director
 
